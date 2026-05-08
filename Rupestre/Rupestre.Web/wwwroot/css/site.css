@@ -1,22 +1,98 @@
 html {
-  font-size: 14px;
+    font-size: 14px;
 }
 
 @media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
+    html {
+        font-size: 16px;
+    }
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
 body {
-  margin-bottom: 60px;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+/* ─── App wrapper ──────────────────────────────────────────── */
+#appWrapper {
+    min-height: 100vh;
+}
+
+/* ─── Sidebar ──────────────────────────────────────────────── */
+#sidebar {
+    width: 230px;
+    min-height: 100vh;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+#sidebar .sidebar-brand {
+    font-size: 1.1rem;
+    letter-spacing: 0.02em;
+}
+
+#sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.6);
+    border-radius: 0.4rem;
+    margin: 1px 8px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.9rem;
+    transition: background 0.15s, color 0.15s;
+}
+
+#sidebar .nav-link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#sidebar .nav-link.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.18);
+    font-weight: 500;
+}
+
+.sidebar-submenu .nav-link {
+    padding-left: 2.2rem !important;
+    font-size: 0.85rem;
+}
+
+/* ─── Content area ─────────────────────────────────────────── */
+#contentWrapper {
+    min-width: 0;
+}
+
+/* ─── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 767.98px) {
+    #sidebar {
+        position: fixed;
+        left: -230px;
+        transition: left 0.25s ease;
+        z-index: 1050;
+    }
+
+    #sidebar.show {
+        left: 0;
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.45);
+    }
+
+    #sidebarOverlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1049;
+    }
+
+    #sidebarOverlay.show {
+        display: block;
+    }
 }

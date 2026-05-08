@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IVendaService, VendaService>();
         services.AddScoped<IFormaPagamentoService, FormaPagamentoService>();
         services.AddScoped<IVendaRemessaService, VendaRemessaService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         return services;
     }
