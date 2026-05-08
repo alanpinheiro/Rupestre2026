@@ -1,0 +1,37 @@
+@model Rupestre.Application.DTOs.DespesaDto
+
+<form id="formEntity" action="@Url.Action("Save", "Despesa")" method="post">
+    <input type="hidden" asp-for="Id" />
+
+    <div class="mb-3">
+        <label asp-for="Nome" class="form-label">Nome / Descrição <span class="text-danger">*</span></label>
+        <input asp-for="Nome" class="form-control" required maxlength="200" autofocus />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="DataDespesa" class="form-label">Data <span class="text-danger">*</span></label>
+            <input asp-for="DataDespesa" type="date" class="form-control" required
+                   value="@Model.DataDespesa.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="ValorDespesa" class="form-label">Valor <span class="text-danger">*</span></label>
+            <div class="input-group">
+                <span class="input-group-text">R$</span>
+                <input asp-for="ValorDespesa" type="number" step="0.01" min="0.01" class="form-control" required />
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="StatusDespesa" class="form-label">Status <span class="text-danger">*</span></label>
+        <select asp-for="StatusDespesa" class="form-select" required
+                asp-items="Html.GetEnumSelectList<Rupestre.Domain.Enums.StatusDespesa>()">
+        </select>
+    </div>
+
+    <div class="modal-footer px-0 pb-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+</form>

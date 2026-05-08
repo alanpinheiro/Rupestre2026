@@ -1,0 +1,68 @@
+### --- CLAUDE IGNORE --- ###
+
+# Dependências e Builds (O Claude não precisa ler código compilado)
+bin/
+obj/
+publish/
+node_modules/
+packages/
+*.dll
+*.exe
+*.pdb
+*.nupkg
+
+# IDEs e Configurações Pessoais
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+*.userprefs
+
+# Unity (Se o projeto for de Game Dev)
+Library/
+Temp/
+Obj/
+Logs/
+MemoryCaptures/
+AssetStoreTools/
+Artifacts/
+/Assets/Plugins/
+
+# Dados Sensíveis e Segredos (CRÍTICO)
+*.env
+*.env.*
+appsettings.Development.json
+appsettings.Local.json
+*.pfx
+*.snk
+*.publishsettings
+secrets.json
+.aws/
+.azure/
+
+# Logs e Arquivos Temporários
+*.log
+*.tmp
+*.bak
+*.swp
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# Documentação Pesada e Assets Binários
+*.pdf
+*.zip
+*.7z
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.wav
+*.fbx
+*.asset
+
+# Git e Histórico
+.git/
+.history/
+.localhistory/

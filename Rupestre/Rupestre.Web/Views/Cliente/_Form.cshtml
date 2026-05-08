@@ -1,0 +1,42 @@
+@model Rupestre.Application.DTOs.ClienteDto
+
+<form id="formEntity" action="@Url.Action("Save", "Cliente")" method="post">
+    <input type="hidden" asp-for="Id" />
+
+    <div class="mb-3">
+        <label asp-for="Nome" class="form-label">Nome <span class="text-danger">*</span></label>
+        <input asp-for="Nome" class="form-control" required maxlength="200" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Cpf" class="form-label">CPF</label>
+            <input asp-for="Cpf" class="form-control" maxlength="15" placeholder="000.000.000-00" />
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="Rg" class="form-label">RG</label>
+            <input asp-for="Rg" class="form-control" maxlength="20" />
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Endereco" class="form-label">Endereço</label>
+        <input asp-for="Endereco" class="form-control" maxlength="500" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="Telefone1" class="form-label">Telefone 1</label>
+            <input asp-for="Telefone1" class="form-control" maxlength="20" placeholder="(00) 00000-0000" />
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="Telefone2" class="form-label">Telefone 2</label>
+            <input asp-for="Telefone2" class="form-control" maxlength="20" placeholder="(00) 00000-0000" />
+        </div>
+    </div>
+
+    <div class="modal-footer px-0 pb-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+</form>

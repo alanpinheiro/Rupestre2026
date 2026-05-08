@@ -1,0 +1,54 @@
+@model Rupestre.Application.DTOs.ProdutoDto
+
+<form id="formEntity" action="@Url.Action("Save", "Produto")" method="post">
+    <input type="hidden" asp-for="Id" />
+
+    <div class="mb-3">
+        <label asp-for="Nome" class="form-label">Nome <span class="text-danger">*</span></label>
+        <input asp-for="Nome" class="form-control" required maxlength="200" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Fabricante_Id" class="form-label">Fabricante <span class="text-danger">*</span></label>
+        <select asp-for="Fabricante_Id" asp-items="ViewBag.Fabricantes" class="form-select" required>
+            <option value="">Selecione...</option>
+        </select>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label asp-for="Estoque" class="form-label">Estoque <span class="text-danger">*</span></label>
+            <input asp-for="Estoque" type="number" class="form-control" required min="0" />
+        </div>
+        <div class="col-md-4 mb-3">
+            <label asp-for="MinEstoque" class="form-label">Estoque Mínimo</label>
+            <input asp-for="MinEstoque" type="number" class="form-control" min="0" />
+        </div>
+        <div class="col-md-4 mb-3">
+            <label asp-for="MaxEstoque" class="form-label">Estoque Máximo</label>
+            <input asp-for="MaxEstoque" type="number" class="form-control" min="0" />
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="PrecoCusto" class="form-label">Preço de Custo <span class="text-danger">*</span></label>
+            <div class="input-group">
+                <span class="input-group-text">R$</span>
+                <input asp-for="PrecoCusto" type="number" step="0.01" min="0" class="form-control" required />
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="PrecoVenda" class="form-label">Preço de Venda <span class="text-danger">*</span></label>
+            <div class="input-group">
+                <span class="input-group-text">R$</span>
+                <input asp-for="PrecoVenda" type="number" step="0.01" min="0" class="form-control" required />
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer px-0 pb-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+</form>

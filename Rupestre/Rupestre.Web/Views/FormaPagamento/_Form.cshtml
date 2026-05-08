@@ -1,0 +1,73 @@
+@model Rupestre.Application.DTOs.FormaPagamentoDto
+
+<form id="formEntity" action="@Url.Action("Save", "FormaPagamento")" method="post">
+    <input type="hidden" asp-for="Id" />
+
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <label asp-for="Nome" class="form-label">Nome <span class="text-danger">*</span></label>
+            <input asp-for="Nome" class="form-control" required maxlength="100" autofocus />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="TaxaAdministrativa" class="form-label">Taxa Administrativa (%)</label>
+            <input asp-for="TaxaAdministrativa" type="number" step="0.01" min="0" class="form-control" />
+        </div>
+    </div>
+
+    <p class="fw-semibold mb-2">Fatores por parcela (%)</p>
+    <div class="row row-cols-4 g-2 mb-3">
+        <div class="col">
+            <label asp-for="Fator1" class="form-label mb-1 small">1x</label>
+            <input asp-for="Fator1" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator2" class="form-label mb-1 small">2x</label>
+            <input asp-for="Fator2" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator3" class="form-label mb-1 small">3x</label>
+            <input asp-for="Fator3" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator4" class="form-label mb-1 small">4x</label>
+            <input asp-for="Fator4" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator5" class="form-label mb-1 small">5x</label>
+            <input asp-for="Fator5" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator6" class="form-label mb-1 small">6x</label>
+            <input asp-for="Fator6" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator7" class="form-label mb-1 small">7x</label>
+            <input asp-for="Fator7" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator8" class="form-label mb-1 small">8x</label>
+            <input asp-for="Fator8" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator9" class="form-label mb-1 small">9x</label>
+            <input asp-for="Fator9" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator10" class="form-label mb-1 small">10x</label>
+            <input asp-for="Fator10" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator11" class="form-label mb-1 small">11x</label>
+            <input asp-for="Fator11" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+        <div class="col">
+            <label asp-for="Fator12" class="form-label mb-1 small">12x</label>
+            <input asp-for="Fator12" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+        </div>
+    </div>
+
+    <div class="modal-footer px-0 pb-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+</form>

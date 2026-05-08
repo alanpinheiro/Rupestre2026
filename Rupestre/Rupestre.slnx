@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Rupestre.Domain/Rupestre.Domain.csproj" />
+  <Project Path="Rupestre.Application/Rupestre.Application.csproj" />
+  <Project Path="Rupestre.Infrastructure/Rupestre.Infrastructure.csproj" />
+  <Project Path="Rupestre.Web/Rupestre.Web.csproj" />
+</Solution>

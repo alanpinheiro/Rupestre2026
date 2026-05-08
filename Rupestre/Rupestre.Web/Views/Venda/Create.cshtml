@@ -1,0 +1,467 @@
+@model Rupestre.Application.DTOs.VendaSaveDto
+@{
+    bool isEdit = Model.Id != 0;
+    ViewData["Title"] = isEdit ? "Editar Venda" : "Nova Venda";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">@ViewData["Title"]</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+<input type="hidden" id="vendaId" value="@Model.Id" />
+
+<!-- Dados Gerais -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-primary text-white fw-semibold">
+        <i class="bi bi-card-list me-2"></i>Dados Gerais
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label">Data <span class="text-danger">*</span></label>
+                <input type="date" id="dataVenda" class="form-control"
+                       value="@Model.DataVenda.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Nº Pedido</label>
+                <input type="number" id="numeroPedidoExterno" class="form-control"
+                       value="@Model.NumeroPedidoExterno" min="1" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Vendedor <span class="text-danger">*</span></label>
+                <select id="vendedor_Id" class="form-select" required>
+                    <option value="">Selecione um vendedor</option>
+                    @foreach (var v in (IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewBag.Vendedores)
+                    {
+                        <option value="@v.Value">@v.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Data de Entrega</label>
+                <input type="date" id="dataEntrega" class="form-control"
+                       value="@(Model.DataEntrega?.ToString("yyyy-MM-dd") ?? "")" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Cliente <span class="text-danger">*</span></label>
+                <select id="cliente_Id" class="form-select" required>
+                    <option value="">Selecione um cliente</option>
+                    @foreach (var c in (IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewBag.Clientes)
+                    {
+                        <option value="@c.Value">@c.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status Venda</label>
+                <select id="statusVenda" class="form-select">
+                    <option value="2">Pendente</option>
+                    <option value="1">Concluída</option>
+                    <option value="0">Cancelada</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status Entrega</label>
+                <select id="statusEntrega" class="form-select">
+                    <option value="2">Agendada</option>
+                    <option value="1">Entregue</option>
+                    <option value="3">Atrasada</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Produtos -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-primary text-white fw-semibold">
+        <i class="bi bi-box-seam me-2"></i>Produtos
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-striped table-bordered mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:40%">Produto</th>
+                    <th class="text-end" style="width:15%">Preço Unit.</th>
+                    <th class="text-center" style="width:10%">Qtd</th>
+                    <th class="text-end" style="width:15%">SubTotal</th>
+                    <th class="text-center" style="width:50px"></th>
+                </tr>
+            </thead>
+            <tbody id="produtosBody"></tbody>
+        </table>
+    </div>
+    <div class="card-footer bg-transparent">
+        <button type="button" id="btnAddProduto" class="btn btn-warning btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Adicionar Produto
+        </button>
+    </div>
+</div>
+
+<!-- Pagamento -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-primary text-white fw-semibold">
+        <i class="bi bi-credit-card me-2"></i>Pagamento
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-striped table-bordered mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:30%">Forma de Pagamento</th>
+                    <th style="width:12%">Tipo</th>
+                    <th class="text-end" style="width:15%">Valor Pago</th>
+                    <th class="text-center" style="width:10%">Parcelas</th>
+                    <th class="text-end" style="width:15%">Valor Líquido</th>
+                    <th class="text-center" style="width:50px"></th>
+                </tr>
+            </thead>
+            <tbody id="pagamentosBody"></tbody>
+        </table>
+    </div>
+    <div class="card-footer bg-transparent">
+        <button type="button" id="btnAddPagamento" class="btn btn-warning btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Adicionar Pagamento
+        </button>
+    </div>
+</div>
+
+<!-- Total -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-primary text-white fw-semibold">
+        <i class="bi bi-calculator me-2"></i>Total
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label small">Total Produtos</label>
+                <input id="totalProdutos" class="form-control bg-light fw-semibold" readonly value="R$ 0,00" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Total Pago</label>
+                <input id="totalPago" class="form-control bg-light" readonly value="R$ 0,00" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Valor Líquido</label>
+                <input id="totalLiquido" class="form-control bg-light" readonly value="R$ 0,00" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Frete</label>
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input type="number" id="inpFrete" class="form-control"
+                           step="0.01" min="0" value="@(Model.Frete?.ToString("0.00") ?? "0")" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Residência</label>
+                <input id="totalResidencia" class="form-control bg-light" readonly value="R$ 0,00" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Observação -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-primary text-white fw-semibold">
+        <i class="bi bi-pencil-square me-2"></i>Observação
+    </div>
+    <div class="card-body">
+        <textarea id="observacao" class="form-control" rows="3">@Model.Observacao</textarea>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end gap-2 mb-4">
+    <a asp-action="Index" class="btn btn-secondary">Cancelar</a>
+    <button type="button" id="btnSalvar" class="btn btn-primary">
+        <i class="bi bi-floppy me-1"></i>Salvar Venda
+    </button>
+</div>
+
+@section Scripts {
+<script>
+const produtosData  = @Json.Serialize(ViewBag.ProdutosData);
+const formasData    = @Json.Serialize(ViewBag.FormasPagamentoData);
+const produtosIniciais  = @Json.Serialize(Model.Produtos);
+const pagamentosIniciais = @Json.Serialize(Model.Pagamentos);
+
+const fmtBRL = v => 'R$ ' + (+(v ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+// ─── Opções HTML pré-montadas ────────────────────────────────────────────────
+const produtoOpts = produtosData.map(p =>
+    `<option value="${p.id}" data-preco="${p.precoVenda}">${p.nome} (${p.estoque} em estoque)</option>`
+).join('');
+
+const formaOpts = formasData.map(f =>
+    `<option value="${f.id}">${f.nome}</option>`
+).join('');
+
+// ─── Select2 helper para uma célula ─────────────────────────────────────────
+function applySelect2(sel) {
+    $(sel).select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dropdownParent: $(document.body),
+        language: { noResults: () => 'Nenhum resultado' }
+    });
+}
+
+// ─── Totais (lê direto do DOM) ───────────────────────────────────────────────
+function calcularTotais() {
+    let totalProd = 0;
+    document.querySelectorAll('#produtosBody .inp-subtotal').forEach(el => {
+        totalProd += parseFloat(el.value) || 0;
+    });
+
+    let totalPago = 0, totalPagoTipoProduto = 0, totalLiquidoVenda = 0;
+    document.querySelectorAll('#pagamentosBody tr').forEach(tr => {
+        const valor   = parseFloat(tr.querySelector('.inp-valor')?.value)   || 0;
+        const liquido = parseFloat(tr.querySelector('.inp-liquido')?.value) || 0;
+        const tipo    = parseInt(tr.querySelector('.sel-tipo')?.value)      || 1;
+        totalPago += valor;
+        if (tipo === 1) {
+            totalPagoTipoProduto += valor;
+            totalLiquidoVenda    += liquido;
+        }
+    });
+
+    const frete     = parseFloat(document.getElementById('inpFrete').value) || 0;
+    const resultado = (totalProd - totalPagoTipoProduto) + totalLiquidoVenda;
+
+    document.getElementById('totalProdutos').value   = fmtBRL(totalProd);
+    document.getElementById('totalPago').value       = fmtBRL(totalPago);
+    document.getElementById('totalLiquido').value    = fmtBRL(resultado);
+    document.getElementById('totalResidencia').value = fmtBRL(totalProd + frete - totalPago);
+}
+
+document.getElementById('inpFrete').addEventListener('input', calcularTotais);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PRODUTOS
+// ════════════════════════════════════════════════════════════════════════════
+function addProdutoRow(data) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="p-1">
+            <select class="form-select form-select-sm sel-produto" data-no-select2>
+                <option value="">Selecione um produto</option>
+                ${produtoOpts}
+            </select>
+        </td>
+        <td class="p-1"><input type="number" class="form-control form-control-sm inp-preco text-end" step="0.01" min="0" value="0" /></td>
+        <td class="p-1"><input type="number" class="form-control form-control-sm inp-qtd text-center" min="1" value="1" /></td>
+        <td class="p-1"><input class="form-control form-control-sm bg-light inp-subtotal text-end" readonly value="0.00" /></td>
+        <td class="p-1 text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-rm-produto"><i class="bi bi-x"></i></button></td>`;
+
+    document.getElementById('produtosBody').appendChild(tr);
+
+    const sel       = tr.querySelector('.sel-produto');
+    const inpPreco  = tr.querySelector('.inp-preco');
+    const inpQtd    = tr.querySelector('.inp-qtd');
+    const inpSub    = tr.querySelector('.inp-subtotal');
+
+    applySelect2(sel);
+
+    function recalcRow() {
+        const preco = parseFloat(inpPreco.value) || 0;
+        const qtd   = parseInt(inpQtd.value)     || 1;
+        inpSub.value = (preco * qtd).toFixed(2);
+        calcularTotais();
+    }
+
+    $(sel).on('change', function () {
+        const opt = sel.options[sel.selectedIndex];
+        inpPreco.value = parseFloat(opt?.dataset?.preco) || 0;
+        recalcRow();
+    });
+
+    inpPreco.addEventListener('input', recalcRow);
+    inpQtd.addEventListener('input',   recalcRow);
+
+    tr.querySelector('.btn-rm-produto').addEventListener('click', () => {
+        tr.remove();
+        calcularTotais();
+    });
+
+    // Pré-preenche no modo edição
+    if (data?.produto_Id) {
+        $(sel).val(data.produto_Id).trigger('change.select2');
+        inpPreco.value = data.precoVenda ?? 0;
+        inpQtd.value   = data.quantidade ?? 1;
+        recalcRow();
+    }
+}
+
+document.getElementById('btnAddProduto').addEventListener('click', () => addProdutoRow());
+
+// ════════════════════════════════════════════════════════════════════════════
+// PAGAMENTOS
+// ════════════════════════════════════════════════════════════════════════════
+function getFator(formaId, parcelas) {
+    const f = formasData.find(x => x.id == formaId);
+    const fatores = f?.fatores ?? f?.Fatores;
+    if (!fatores) return null;
+    const v = parseFloat(fatores[Math.max(0, parcelas - 1)]);
+    return isNaN(v) ? null : v;
+}
+
+function addPagamentoRow(data) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="p-1">
+            <select class="form-select form-select-sm sel-forma" data-no-select2>
+                <option value="">Selecione</option>
+                ${formaOpts}
+            </select>
+        </td>
+        <td class="p-1">
+            <select class="form-select form-select-sm sel-tipo" data-no-select2>
+                <option value="1">Produto</option>
+                <option value="2">Frete</option>
+            </select>
+        </td>
+        <td class="p-1"><input type="number" class="form-control form-control-sm inp-valor text-end" step="0.01" min="0" value="0" /></td>
+        <td class="p-1"><input type="number" class="form-control form-control-sm inp-parcelas text-center" min="1" max="12" value="1" /></td>
+        <td class="p-1"><input class="form-control form-control-sm bg-light inp-liquido text-end" readonly value="0.00" /></td>
+        <td class="p-1 text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-rm-pag"><i class="bi bi-x"></i></button></td>`;
+
+    document.getElementById('pagamentosBody').appendChild(tr);
+
+    const selForma   = tr.querySelector('.sel-forma');
+    const selTipo    = tr.querySelector('.sel-tipo');
+    const inpValor   = tr.querySelector('.inp-valor');
+    const inpParc    = tr.querySelector('.inp-parcelas');
+    const inpLiquido = tr.querySelector('.inp-liquido');
+
+    applySelect2(selForma);
+    applySelect2(selTipo);
+
+    function recalcPag() {
+        const formaId  = parseInt($(selForma).val()) || 0;
+        const valor    = parseFloat(inpValor.value)  || 0;
+        const parcelas = parseInt(inpParc.value)     || 1;
+        const fator    = getFator(formaId, parcelas);
+        let liquido;
+        if (parcelas === 1) {
+            // fator armazenado como percentual (ex: 5 = 5%); desconta do valor bruto
+            const percentual = (fator ?? 0) / 100.0;
+            const taxa = percentual * valor;
+            liquido = valor - taxa;
+        } else {
+            // fator = divisor (ex: 0.90); divide o valor bruto
+            const divisor = (fator != null && fator > 0) ? fator : 1;
+            liquido = valor / divisor;
+        }
+        inpLiquido.value = liquido.toFixed(2);
+        calcularTotais();
+    }
+
+    $(selForma).on('change', recalcPag);
+    inpValor.addEventListener('input',  recalcPag);
+    inpParc.addEventListener('input',   recalcPag);
+
+    tr.querySelector('.btn-rm-pag').addEventListener('click', () => {
+        tr.remove();
+        calcularTotais();
+    });
+
+    // Pré-preenche no modo edição
+    if (data?.formaPagamento_Id) {
+        $(selForma).val(data.formaPagamento_Id).trigger('change.select2');
+        $(selTipo).val(data.tipoPagamento_Id ?? 1).trigger('change.select2');
+        inpValor.value = data.valorPagamento ?? 0;
+        inpParc.value  = data.parcelas ?? 1;
+        recalcPag();
+    }
+}
+
+document.getElementById('btnAddPagamento').addEventListener('click', () => addPagamentoRow());
+
+// ─── Salvar ──────────────────────────────────────────────────────────────────
+document.getElementById('btnSalvar').addEventListener('click', function () {
+    const cliente  = document.getElementById('cliente_Id').value;
+    const vendedor = document.getElementById('vendedor_Id').value;
+    if (!cliente)  { alert('Selecione o cliente.');  return; }
+    if (!vendedor) { alert('Selecione o vendedor.'); return; }
+
+    const produtos = [];
+    document.querySelectorAll('#produtosBody tr').forEach(tr => {
+        const id = parseInt(tr.querySelector('.sel-produto')?.value);
+        if (!id) return;
+        const preco = parseFloat(tr.querySelector('.inp-preco').value)  || 0;
+        const qtd   = parseInt(tr.querySelector('.inp-qtd').value)      || 1;
+        produtos.push({ produto_Id: id, precoVenda: preco, quantidade: qtd, subTotal: preco * qtd });
+    });
+
+    if (produtos.length === 0) { alert('Adicione pelo menos um produto.'); return; }
+
+    const pagamentos = [];
+    document.querySelectorAll('#pagamentosBody tr').forEach(tr => {
+        const id = parseInt(tr.querySelector('.sel-forma')?.value);
+        if (!id) return;
+        const valor    = parseFloat(tr.querySelector('.inp-valor').value)   || 0;
+        const parcelas = parseInt(tr.querySelector('.inp-parcelas').value)  || 1;
+        const liquido  = parseFloat(tr.querySelector('.inp-liquido').value) || 0;
+        const tipo     = parseInt(tr.querySelector('.sel-tipo')?.value)     || 1;
+        pagamentos.push({ formaPagamento_Id: id, tipoPagamento_Id: tipo, parcelas, valorPagamento: valor, valorLiquidoPagamento: liquido });
+    });
+
+    const frete      = parseFloat(document.getElementById('inpFrete').value) || 0;
+    const totalProd  = produtos.reduce((s, p) => s + p.subTotal, 0);
+    const totalLiq   = pagamentos.reduce((s, p) => s + p.valorLiquidoPagamento, 0);
+    const dataEntrega = document.getElementById('dataEntrega').value;
+
+    const payload = {
+        id: parseInt(document.getElementById('vendaId').value) || 0,
+        numeroPedidoExterno: parseInt(document.getElementById('numeroPedidoExterno').value) || null,
+        dataVenda:    document.getElementById('dataVenda').value,
+        statusVenda:  parseInt(document.getElementById('statusVenda').value),
+        dataEntrega:  dataEntrega || null,
+        statusEntrega: parseInt(document.getElementById('statusEntrega').value),
+        observacao:   document.getElementById('observacao').value,
+        frete:        frete || null,
+        residenciaPagamento: totalProd + frete - totalLiq,
+        cliente_Id:  parseInt(cliente),
+        vendedor_Id: parseInt(vendedor),
+        produtos, pagamentos
+    };
+
+    const btn = this;
+    btn.disabled = true;
+
+    fetch('@Url.Action("Save")', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) window.location.href = '@Url.Action("Index")';
+        else { alert(res.message); btn.disabled = false; }
+    })
+    .catch(() => { alert('Erro ao salvar.'); btn.disabled = false; });
+});
+
+// ─── Inicialização ───────────────────────────────────────────────────────────
+// Valores dos selects estáticos (antes do DOMContentLoaded / initSelect2)
+document.getElementById('vendedor_Id').value  = '@Model.Vendedor_Id';
+document.getElementById('cliente_Id').value   = '@Model.Cliente_Id';
+document.getElementById('statusVenda').value  = '@((int)Model.StatusVenda)';
+document.getElementById('statusEntrega').value = '@((int)Model.StatusEntrega)';
+
+// Carrega linhas existentes (edição) ou uma linha vazia (criação)
+if (produtosIniciais.length > 0)
+    produtosIniciais.forEach(p => addProdutoRow(p));
+else
+    addProdutoRow();
+
+if (pagamentosIniciais.length > 0)
+    pagamentosIniciais.forEach(p => addPagamentoRow(p));
+else
+    addPagamentoRow();
+
+calcularTotais();
+</script>
+}

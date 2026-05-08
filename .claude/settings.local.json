@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Projetos\\\\Rupestre\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(sqlcmd -S localhost -d GESTOREASY -E -Q \"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME\" -h -1)",
+      "Bash(sqlcmd -S localhost -d GESTOREASY -E -Q \"SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE, COLUMN_DEFAULT, COLUMNPROPERTY\\(OBJECT_ID\\(TABLE_SCHEMA+'.'+TABLE_NAME\\), COLUMN_NAME, 'IsIdentity'\\) AS IS_IDENTITY FROM INFORMATION_SCHEMA.COLUMNS ORDER BY TABLE_NAME, ORDINAL_POSITION\" -h -1 -W)",
+      "Bash(dotnet new *)",
+      "PowerShell(Rename-Item -Path \"C:\\\\Projetos\\\\Rupestre\\\\Rupestre\\\\Rupestre\" -NewName \"Rupestre.Web\" -Force)",
+      "PowerShell(Rename-Item -Path \"C:\\\\Projetos\\\\Rupestre\\\\Rupestre\\\\Rupestre.Web\\\\Rupestre.csproj\" -NewName \"Rupestre.Web.csproj\")",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match \"devenv|MSBuild|dotnet\" } | Select-Object Name, Id)"
+    ]
+  }
+}

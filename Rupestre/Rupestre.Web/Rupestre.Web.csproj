@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rupestre.Web</RootNamespace>
+    <AssemblyName>Rupestre.Web</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rupestre.Application\Rupestre.Application.csproj" />
+    <ProjectReference Include="..\Rupestre.Infrastructure\Rupestre.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
