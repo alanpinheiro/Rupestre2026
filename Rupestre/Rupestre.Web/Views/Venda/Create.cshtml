@@ -383,8 +383,8 @@ document.getElementById('btnAddPagamento').addEventListener('click', () => addPa
 document.getElementById('btnSalvar').addEventListener('click', function () {
     const cliente  = document.getElementById('cliente_Id').value;
     const vendedor = document.getElementById('vendedor_Id').value;
-    if (!cliente)  { alert('Selecione o cliente.');  return; }
-    if (!vendedor) { alert('Selecione o vendedor.'); return; }
+    if (!cliente)  { showAlert('Selecione o cliente.',  'warning'); return; }
+    if (!vendedor) { showAlert('Selecione o vendedor.', 'warning'); return; }
 
     const produtos = [];
     document.querySelectorAll('#produtosBody tr').forEach(tr => {
@@ -395,7 +395,7 @@ document.getElementById('btnSalvar').addEventListener('click', function () {
         produtos.push({ produto_Id: id, precoVenda: preco, quantidade: qtd, subTotal: preco * qtd });
     });
 
-    if (produtos.length === 0) { alert('Adicione pelo menos um produto.'); return; }
+    if (produtos.length === 0) { showAlert('Adicione pelo menos um produto.', 'warning'); return; }
 
     const pagamentos = [];
     document.querySelectorAll('#pagamentosBody tr').forEach(tr => {
@@ -439,9 +439,9 @@ document.getElementById('btnSalvar').addEventListener('click', function () {
     .then(r => r.json())
     .then(res => {
         if (res.success) window.location.href = '@Url.Action("Index")';
-        else { alert(res.message); btn.disabled = false; }
+        else { showAlert(res.message); btn.disabled = false; }
     })
-    .catch(() => { alert('Erro ao salvar.'); btn.disabled = false; });
+    .catch(() => { showAlert('Erro ao salvar.'); btn.disabled = false; });
 });
 
 // ─── Inicialização ───────────────────────────────────────────────────────────

@@ -92,15 +92,17 @@
         e.preventDefault();
         $.post($(this).attr('action'), $(this).serialize(), function (res) {
             if (res.success) { modal.hide(); table.ajax.reload(); }
-            else alert(res.message);
+            else showAlert(res.message);
         });
     });
 
     $(document).on('click', '.btn-delete', function () {
-        if (!confirm('Deseja excluir esta forma de pagamento?')) return;
-        $.post('@Url.Action("Delete")/' + $(this).data('id'), function (res) {
-            if (res.success) table.ajax.reload();
-            else alert(res.message);
+        const id = $(this).data('id');
+        showConfirm('Deseja excluir esta forma de pagamento?', function () {
+            $.post('@Url.Action("Delete")/' + id, function (res) {
+                if (res.success) table.ajax.reload();
+                else showAlert(res.message);
+            });
         });
     });
 </script>

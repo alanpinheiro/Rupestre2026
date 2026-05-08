@@ -72,10 +72,12 @@
     });
 
     $(document).on('click', '.btn-delete', function () {
-        if (!confirm('Deseja excluir esta venda?')) return;
-        $.post('@Url.Action("Delete")/' + $(this).data('id'), function (res) {
-            if (res.success) table.ajax.reload();
-            else alert(res.message);
+        const id = $(this).data('id');
+        showConfirm('Deseja excluir esta venda?', function () {
+            $.post('@Url.Action("Delete")/' + id, function (res) {
+                if (res.success) table.ajax.reload();
+                else showAlert(res.message);
+            });
         });
     });
 </script>

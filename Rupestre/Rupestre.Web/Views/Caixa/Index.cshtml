@@ -60,11 +60,10 @@
                     </dl>
                 </div>
                 <div class="card-footer bg-transparent text-end">
-                    <form asp-action="Fechar" method="post">
+                    <form asp-action="Fechar" method="post" id="formFechar">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="id" value="@Model!.Id" />
-                        <button type="submit" class="btn btn-danger"
-                                onclick="return confirm('Confirma o fechamento do caixa?')">
+                        <button type="button" class="btn btn-danger" id="btnFecharCaixa">
                             <i class="bi bi-lock me-1"></i> Fechar Caixa
                         </button>
                     </form>
@@ -150,3 +149,16 @@
 
     </div>
 </div>
+
+@section Scripts {
+<script>
+    const btnFechar = document.getElementById('btnFecharCaixa');
+    if (btnFechar) {
+        btnFechar.addEventListener('click', function () {
+            showConfirm('Confirma o fechamento do caixa?', function () {
+                document.getElementById('formFechar').submit();
+            });
+        });
+    }
+</script>
+}
