@@ -1,0 +1,19 @@
+@model Rupestre.Application.DTOs.SuprimentoDto
+
+<form id="formEntity" action="@Url.Action("Save", "Suprimento")" method="post">
+    <input type="hidden" asp-for="Id" />
+
+    <div class="mb-3">
+        <label asp-for="ValorSuprimento" class="form-label">Valor <span class="text-danger">*</span></label>
+        <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input asp-for="ValorSuprimento" type="number" step="0.01" min="0.01"
+                   class="form-control" required autofocus />
+        </div>
+    </div>
+
+    <div class="modal-footer px-0 pb-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+</form>

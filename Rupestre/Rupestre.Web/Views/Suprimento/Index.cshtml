@@ -1,0 +1,120 @@
+@{
+    ViewData["Title"] = "Suprimentos";
+    bool caixaAberto = ViewBag.CaixaAberto == true;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Suprimentos</h4>
+    @if (caixaAberto)
+    {
+        <button class="btn btn-primary btn-sm" id="btnNovo">
+            <i class="bi bi-plus-lg"></i> Novo Suprimento
+        </button>
+    }
+    else
+    {
+        <a asp-controller="Caixa" asp-action="Index"
+           class="btn btn-outline-warning btn-sm"
+           title="Abra o caixa para lançar suprimentos">
+            <i class="bi bi-exclamation-triangle me-1"></i> Caixa fechado — abrir caixa
+        </a>
+    }
+</div>
+
+@if (!caixaAberto)
+{
+    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+        <span>Não há caixa aberto. Novos suprimentos só podem ser lançados com o caixa aberto.</span>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <table id="tblSuprimentos" class="table table-striped table-bordered table-hover w-100">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center">#</th>
+                    <th class="text-end">Valor</th>
+                    <th class="text-center" style="width:120px">Ações</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="entityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Suprimento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const modal = new bootstrap.Modal(document.getElementById('entityModal'));
+
+    const table = $('#tblSuprimentos').DataTable({
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.4/i18n/pt-BR.json' },
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50], [10, 25, 50]],
+        processing: true,
+        serverSide: true,
+        order: [[0, 'desc']],
+        ajax: { url: '@Url.Action("GetData")', type: 'POST' },
+        columns: [
+            { data: 'id', className: 'text-center' },
+            {
+                data: 'valorSuprimento', className: 'text-end',
+                render: v => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+            },
+            {
+                data: 'id', orderable: false, searchable: false, className: 'text-center',
+                render: id => `
+                    <button class="btn btn-sm btn-outline-primary btn-edit" data-id="${id}" title="Editar"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${id}" title="Excluir"><i class="bi bi-trash"></i></button>`
+            }
+        ]
+    });
+
+    $('#btnNovo').on('click', function () {
+        $('#modalTitle').text('Novo Suprimento');
+        $.get('@Url.Action("Form")', function (res) {
+            if (res && res.success === false) { showAlert(res.message); return; }
+            $('#modalBody').html(res);
+            modal.show();
+        });
+    });
+
+    $(document).on('click', '.btn-edit', function () {
+        $('#modalTitle').text('Editar Suprimento');
+        $.get('@Url.Action("Form")/' + $(this).data('id'), function (html) {
+            $('#modalBody').html(html);
+            modal.show();
+        });
+    });
+
+    $(document).on('submit', '#formEntity', function (e) {
+        e.preventDefault();
+        $.post($(this).attr('action'), $(this).serialize(), function (res) {
+            if (res.success) { modal.hide(); table.ajax.reload(); }
+            else showAlert(res.message);
+        });
+    });
+
+    $(document).on('click', '.btn-delete', function () {
+        const id = $(this).data('id');
+        showConfirm('Deseja excluir este suprimento?', function () {
+            $.post('@Url.Action("Delete")/' + id, function (res) {
+                if (res.success) table.ajax.reload();
+                else showAlert(res.message);
+            });
+        });
+    });
+</script>
+}
