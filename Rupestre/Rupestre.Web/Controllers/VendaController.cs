@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Rupestre.Application.DTOs;
 using Rupestre.Application.Interfaces;
 using Rupestre.Web.Models.DataTables;
+
 namespace Rupestre.Web.Controllers;
 
 public class VendaController : Controller
@@ -58,6 +60,7 @@ public class VendaController : Controller
     }
 
     [HttpGet]
+    [Authorize(Roles = "Gerente")]
     public async Task<IActionResult> Edit(int id)
     {
         var dto = await _service.GetByIdAsync(id);
@@ -70,6 +73,9 @@ public class VendaController : Controller
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Save([FromBody] VendaSaveDto dto)
     {
+        if (dto.Id != 0 && !User.IsInRole("Gerente"))
+            return Json(new { success = false, message = "Acesso negado. Apenas Gerentes podem editar vendas." });
+
         try
         {
             if (dto.Id == 0)
@@ -87,6 +93,7 @@ public class VendaController : Controller
 
     [HttpPost]
     [IgnoreAntiforgeryToken]
+    [Authorize(Roles = "Gerente")]
     public async Task<IActionResult> Delete(int id)
     {
         try

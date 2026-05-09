@@ -1,0 +1,66 @@
+@model Rupestre.Web.ViewModels.UsuarioViewModel
+
+<div class="modal-header text-white" style="background-color:#3d3d3d">
+    <h5 class="modal-title">
+        <i class="bi bi-person-gear me-2"></i>
+        @(Model.Id == null ? "Novo Usuário" : "Editar Usuário")
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+</div>
+
+<form id="formEntity">
+    <input type="hidden" name="Id" value="@Model.Id" />
+
+    <div class="modal-body">
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Login <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="UserName" value="@Model.UserName"
+                   required @(Model.Id != null ? "readonly" : "")
+                   autocomplete="off" />
+            @if (Model.Id != null)
+            {
+                <div class="form-text">O login não pode ser alterado após a criação.</div>
+            }
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Nome Completo</label>
+            <input type="text" class="form-control" name="NomeCompleto" value="@Model.NomeCompleto"
+                   autocomplete="off" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Perfil <span class="text-danger">*</span></label>
+            <select class="form-select" name="Perfil" required>
+                <option value="Gerente"  selected="@(Model.Perfil == "Gerente"  ? "selected" : null)">Gerente</option>
+                <option value="Vendedor" selected="@(Model.Perfil == "Vendedor" ? "selected" : null)">Vendedor</option>
+            </select>
+        </div>
+
+        <div class="mb-1">
+            <label class="form-label fw-semibold">
+                Senha
+                @if (Model.Id == null)
+                {
+                    <span class="text-danger">*</span>
+                }
+                else
+                {
+                    <span class="text-muted fw-normal">(deixe em branco para manter)</span>
+                }
+            </label>
+            <input type="password" class="form-control" name="Senha"
+                   @(Model.Id == null ? "required" : "")
+                   autocomplete="new-password" />
+        </div>
+
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Salvar
+        </button>
+    </div>
+</form>

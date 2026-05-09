@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rupestre.Application.DTOs;
 using Rupestre.Application.Interfaces;
@@ -42,7 +43,9 @@ public class DespesaController : Controller
     [HttpGet]
     public async Task<IActionResult> Form(int id = 0)
     {
-        // Bloqueia nova despesa se não houver caixa aberto
+        if (id != 0 && !User.IsInRole("Gerente"))
+            return Json(new { success = false, message = "Acesso negado. Apenas Gerentes podem editar despesas." });
+
         if (id == 0 && await _caixaService.GetCaixaAbertoAsync() is null)
             return Json(new { success = false, message = "Não há caixa aberto. Abra o caixa antes de lançar uma despesa." });
 
@@ -57,6 +60,9 @@ public class DespesaController : Controller
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Save([FromForm] DespesaDto dto)
     {
+        if (dto.Id != 0 && !User.IsInRole("Gerente"))
+            return Json(new { success = false, message = "Acesso negado. Apenas Gerentes podem editar despesas." });
+
         try
         {
             if (!ModelState.IsValid)
@@ -77,6 +83,7 @@ public class DespesaController : Controller
 
     [HttpPost]
     [IgnoreAntiforgeryToken]
+    [Authorize(Roles = "Gerente")]
     public async Task<IActionResult> Delete(int id)
     {
         try

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rupestre.Application.DTOs;
 using Rupestre.Application.Interfaces;
@@ -5,6 +6,7 @@ using Rupestre.Web.Models.DataTables;
 
 namespace Rupestre.Web.Controllers;
 
+[Authorize(Roles = "Gerente")]
 public class VendedorController : Controller
 {
     private readonly IVendedorService _service;
