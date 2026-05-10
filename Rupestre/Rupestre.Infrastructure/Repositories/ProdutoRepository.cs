@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Common;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
@@ -8,79 +8,62 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class ProdutoRepository : BaseRepository<Produto>, IProdutoRepository
 {
-    protected override string TableName => "Produto";
-
-    private static readonly Dictionary<string, string> OrderColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["nome"] = "p.Nome", ["estoque"] = "p.Estoque", ["precoVenda"] = "p.PrecoVenda", ["nomeFabricante"] = "f.Nome"
-    };
-
-    public ProdutoRepository(ConnectionManager connectionManager) : base(connectionManager) { }
+    public ProdutoRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<Produto>> GetAtivosAsync()
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<Produto>("SELECT * FROM Produto WHERE Deletado = 0 ORDER BY Nome");
-    }
+        => await _db.Produtos.OrderBy(e => e.Nome).ToListAsync();
 
     public async Task<IEnumerable<Produto>> GetComEstoqueBaixoAsync()
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<Produto>(
-            "SELECT * FROM Produto WHERE Deletado = 0 AND MinEstoque IS NOT NULL AND Estoque <= MinEstoque");
-    }
+        => await _db.Produtos
+            .Where(e => e.MinEstoque.HasValue && e.Estoque <= e.MinEstoque.Value)
+            .ToListAsync();
 
     public async Task<PagedResult<Produto>> GetPagedAsync(int start, int length, string search, string orderColumn, string orderDir)
     {
-        var col = OrderColumns.TryGetValue(orderColumn, out var c) ? c : "p.Nome";
-        var dir = orderDir.Equals("desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
-        var searchParam = $"%{search}%";
+        var query = from p in _db.Produtos
+                    join f in _db.Fabricantes.IgnoreQueryFilters() on p.Fabricante_Id equals f.Id into fj
+                    from f in fj.DefaultIfEmpty()
+                    where string.IsNullOrEmpty(search)
+                          || EF.Functions.Like(p.Nome, $"%{search}%")
+                          || (f != null && EF.Functions.Like(f.Nome, $"%{search}%"))
+                    select p;
 
-        var sql = $@"
-SELECT p.* FROM Produto p
-LEFT JOIN Fabricante f ON f.Id = p.Fabricante_Id
-WHERE p.Deletado = 0
-  AND (@Search = '' OR p.Nome LIKE @SearchParam OR f.Nome LIKE @SearchParam)
-ORDER BY {col} {dir}
-OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;
+        int totalRecords    = await _db.Produtos.CountAsync();
+        int filteredRecords = await query.CountAsync();
 
-SELECT COUNT(*) FROM Produto WHERE Deletado = 0;
-
-SELECT COUNT(*) FROM Produto p
-LEFT JOIN Fabricante f ON f.Id = p.Fabricante_Id
-WHERE p.Deletado = 0
-  AND (@Search = '' OR p.Nome LIKE @SearchParam OR f.Nome LIKE @SearchParam);";
-
-        using var conn = Connection;
-        using var multi = await conn.QueryMultipleAsync(sql, new { Search = search, SearchParam = searchParam, Start = start, Length = length });
-
-        return new PagedResult<Produto>
+        query = (orderColumn.ToLower(), orderDir.ToLower()) switch
         {
-            Data = (await multi.ReadAsync<Produto>()).ToList(),
-            TotalRecords = await multi.ReadSingleAsync<int>(),
-            FilteredRecords = await multi.ReadSingleAsync<int>()
+            ("estoque",    "desc") => query.OrderByDescending(e => e.Estoque),
+            ("estoque",    _)      => query.OrderBy(e => e.Estoque),
+            ("precovenda", "desc") => query.OrderByDescending(e => e.PrecoVenda),
+            ("precovenda", _)      => query.OrderBy(e => e.PrecoVenda),
+            (_,            "desc") => query.OrderByDescending(e => e.Nome),
+            _                      => query.OrderBy(e => e.Nome)
         };
+
+        var data = await query.Skip(start).Take(length).ToListAsync();
+
+        return new PagedResult<Produto> { Data = data, TotalRecords = totalRecords, FilteredRecords = filteredRecords };
     }
 
     public override async Task<int> InsertAsync(Produto entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            "INSERT INTO Produto (Nome,MinEstoque,MaxEstoque,Estoque,PrecoCusto,PrecoVenda,Fabricante_Id,Deletado) VALUES (@Nome,@MinEstoque,@MaxEstoque,@Estoque,@PrecoCusto,@PrecoVenda,@Fabricante_Id,0); SELECT SCOPE_IDENTITY();",
-            entity);
+        entity.Deletado = false;
+        _db.Produtos.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public override async Task UpdateAsync(Produto entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "UPDATE Produto SET Nome=@Nome,MinEstoque=@MinEstoque,MaxEstoque=@MaxEstoque,Estoque=@Estoque,PrecoCusto=@PrecoCusto,PrecoVenda=@PrecoVenda,Fabricante_Id=@Fabricante_Id WHERE Id=@Id",
-            entity);
+        _db.Produtos.Update(entity);
+        await _db.SaveChangesAsync();
     }
 
     public override async Task DeleteAsync(int id)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync("UPDATE Produto SET Deletado=1 WHERE Id=@Id", new { Id = id });
+        await _db.Produtos.IgnoreQueryFilters()
+            .Where(e => e.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Deletado, true));
     }
 }

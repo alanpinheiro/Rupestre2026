@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Common;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
@@ -8,72 +8,54 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class VendaRemessaRepository : BaseRepository<VendaRemessa>, IVendaRemessaRepository
 {
-    protected override string TableName => "VendaRemessa";
-
-    private static readonly Dictionary<string, string> OrderColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["id"] = "Id",
-        ["valorRemessa"] = "ValorRemessa",
-        ["caixa_Id"] = "Caixa_Id"
-    };
-
-    public VendaRemessaRepository(ConnectionManager connectionManager) : base(connectionManager) { }
+    public VendaRemessaRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<VendaRemessa>> GetByCaixaAsync(int caixaId)
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<VendaRemessa>(
-            "SELECT * FROM VendaRemessa WHERE Caixa_Id = @CaixaId AND Deletado = 0 ORDER BY Id DESC",
-            new { CaixaId = caixaId });
-    }
+        => await _db.VendaRemessas
+            .Where(e => e.Caixa_Id == caixaId)
+            .OrderByDescending(e => e.Id)
+            .ToListAsync();
 
     public async Task<PagedResult<VendaRemessa>> GetPagedAsync(int start, int length, string orderColumn, string orderDir)
     {
-        var col = OrderColumns.TryGetValue(orderColumn, out var c) ? c : "Id";
-        var dir = orderDir.Equals("desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+        var query = _db.VendaRemessas;
 
-        var sql = $@"
-SELECT * FROM VendaRemessa
-WHERE Deletado = 0
-ORDER BY {col} {dir}
-OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;
+        int totalRecords    = await query.CountAsync();
+        int filteredRecords = totalRecords;
 
-SELECT COUNT(*) FROM VendaRemessa WHERE Deletado = 0;
-
-SELECT COUNT(*) FROM VendaRemessa WHERE Deletado = 0;";
-
-        using var conn = Connection;
-        using var multi = await conn.QueryMultipleAsync(sql, new { Start = start, Length = length });
-
-        return new PagedResult<VendaRemessa>
+        IQueryable<VendaRemessa> ordered = (orderColumn.ToLower(), orderDir.ToLower()) switch
         {
-            Data = (await multi.ReadAsync<VendaRemessa>()).ToList(),
-            TotalRecords = await multi.ReadSingleAsync<int>(),
-            FilteredRecords = await multi.ReadSingleAsync<int>()
+            ("valorremessa", "desc") => query.OrderByDescending(e => e.ValorRemessa),
+            ("valorremessa", _)      => query.OrderBy(e => e.ValorRemessa),
+            ("caixa_id",     "desc") => query.OrderByDescending(e => e.Caixa_Id),
+            ("caixa_id",     _)      => query.OrderBy(e => e.Caixa_Id),
+            (_,              "desc") => query.OrderByDescending(e => e.Id),
+            _                        => query.OrderBy(e => e.Id)
         };
+
+        var data = await ordered.Skip(start).Take(length).ToListAsync();
+
+        return new PagedResult<VendaRemessa> { Data = data, TotalRecords = totalRecords, FilteredRecords = filteredRecords };
     }
 
     public override async Task<int> InsertAsync(VendaRemessa entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO VendaRemessa (ValorRemessa, Caixa_Id, Deletado)
-              VALUES (@ValorRemessa, @Caixa_Id, 0);
-              SELECT SCOPE_IDENTITY();",
-            entity);
+        entity.Deletado = false;
+        _db.VendaRemessas.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public override async Task UpdateAsync(VendaRemessa entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "UPDATE VendaRemessa SET ValorRemessa = @ValorRemessa WHERE Id = @Id",
-            entity);
+        _db.VendaRemessas.Update(entity);
+        await _db.SaveChangesAsync();
     }
 
     public override async Task DeleteAsync(int id)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync("UPDATE VendaRemessa SET Deletado = 1 WHERE Id = @Id", new { Id = id });
+        await _db.VendaRemessas.IgnoreQueryFilters()
+            .Where(e => e.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Deletado, true));
     }
 }

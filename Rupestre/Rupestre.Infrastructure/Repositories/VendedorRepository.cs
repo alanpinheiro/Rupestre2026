@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Common;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
@@ -8,68 +8,46 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class VendedorRepository : BaseRepository<Vendedor>, IVendedorRepository
 {
-    protected override string TableName => "Vendedor";
-
-    private static readonly Dictionary<string, string> OrderColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["nome"] = "Nome"
-    };
-
-    public VendedorRepository(ConnectionManager connectionManager) : base(connectionManager) { }
+    public VendedorRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<Vendedor>> GetAtivosAsync()
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<Vendedor>("SELECT * FROM Vendedor WHERE Deletado = 0 ORDER BY Nome");
-    }
+        => await _db.Vendedores.OrderBy(e => e.Nome).ToListAsync();
 
     public async Task<PagedResult<Vendedor>> GetPagedAsync(int start, int length, string search, string orderColumn, string orderDir)
     {
-        var col = OrderColumns.TryGetValue(orderColumn, out var c) ? c : "Nome";
-        var dir = orderDir.Equals("desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
-        var searchParam = $"%{search}%";
+        var query = _db.Vendedores.Where(e =>
+            string.IsNullOrEmpty(search) || EF.Functions.Like(e.Nome, $"%{search}%"));
 
-        var sql = $@"
-SELECT * FROM Vendedor
-WHERE Deletado = 0
-  AND (@Search = '' OR Nome LIKE @SearchParam)
-ORDER BY {col} {dir}
-OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;
+        int totalRecords    = await _db.Vendedores.CountAsync();
+        int filteredRecords = await query.CountAsync();
 
-SELECT COUNT(*) FROM Vendedor WHERE Deletado = 0;
+        query = orderDir.Equals("desc", StringComparison.OrdinalIgnoreCase)
+            ? query.OrderByDescending(e => e.Nome)
+            : query.OrderBy(e => e.Nome);
 
-SELECT COUNT(*) FROM Vendedor
-WHERE Deletado = 0
-  AND (@Search = '' OR Nome LIKE @SearchParam);";
+        var data = await query.Skip(start).Take(length).ToListAsync();
 
-        using var conn = Connection;
-        using var multi = await conn.QueryMultipleAsync(sql, new { Search = search, SearchParam = searchParam, Start = start, Length = length });
-
-        return new PagedResult<Vendedor>
-        {
-            Data = (await multi.ReadAsync<Vendedor>()).ToList(),
-            TotalRecords = await multi.ReadSingleAsync<int>(),
-            FilteredRecords = await multi.ReadSingleAsync<int>()
-        };
+        return new PagedResult<Vendedor> { Data = data, TotalRecords = totalRecords, FilteredRecords = filteredRecords };
     }
 
     public override async Task<int> InsertAsync(Vendedor entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            "INSERT INTO Vendedor (Nome,Deletado) VALUES (@Nome,0); SELECT SCOPE_IDENTITY();",
-            entity);
+        entity.Deletado = false;
+        _db.Vendedores.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public override async Task UpdateAsync(Vendedor entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync("UPDATE Vendedor SET Nome=@Nome WHERE Id=@Id", entity);
+        _db.Vendedores.Update(entity);
+        await _db.SaveChangesAsync();
     }
 
     public override async Task DeleteAsync(int id)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync("UPDATE Vendedor SET Deletado=1 WHERE Id=@Id", new { Id = id });
+        await _db.Vendedores.IgnoreQueryFilters()
+            .Where(e => e.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Deletado, true));
     }
 }

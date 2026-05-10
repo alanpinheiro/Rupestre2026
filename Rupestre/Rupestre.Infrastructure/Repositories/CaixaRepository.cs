@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
 using Rupestre.Infrastructure.Data;
@@ -7,29 +7,21 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class CaixaRepository : BaseRepository<Caixa>, ICaixaRepository
 {
-    protected override string TableName => "Caixa";
-
-    public CaixaRepository(ConnectionManager connectionManager) : base(connectionManager) { }
+    public CaixaRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<Caixa?> GetCaixaAbertoAsync()
-    {
-        using var conn = Connection;
-        return await conn.QueryFirstOrDefaultAsync<Caixa>("SELECT * FROM Caixa WHERE OnOff = 1");
-    }
+        => await _db.Caixas.FirstOrDefaultAsync(c => c.OnOff);
 
     public override async Task<int> InsertAsync(Caixa entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            "INSERT INTO Caixa (DataAbertura, OnOff, ValorAbertura, DinheiroNoCaixa) VALUES (@DataAbertura, @OnOff, @ValorAbertura, @DinheiroNoCaixa); SELECT SCOPE_IDENTITY();",
-            entity);
+        _db.Caixas.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public override async Task UpdateAsync(Caixa entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "UPDATE Caixa SET DataAbertura=@DataAbertura, OnOff=@OnOff, ValorAbertura=@ValorAbertura, DinheiroNoCaixa=@DinheiroNoCaixa WHERE Id=@Id",
-            entity);
+        _db.Caixas.Update(entity);
+        await _db.SaveChangesAsync();
     }
 }

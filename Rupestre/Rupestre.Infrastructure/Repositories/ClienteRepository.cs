@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Common;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
@@ -8,70 +8,55 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class ClienteRepository : BaseRepository<Cliente>, IClienteRepository
 {
-    protected override string TableName => "Cliente";
-
-    private static readonly Dictionary<string, string> OrderColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["nome"] = "Nome", ["cpf"] = "Cpf", ["telefone1"] = "Telefone1"
-    };
-
-    public ClienteRepository(ConnectionManager connectionManager) : base(connectionManager) { }
+    public ClienteRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<Cliente>> GetAtivosAsync()
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<Cliente>("SELECT * FROM Cliente WHERE Deletado = 0 ORDER BY Nome");
-    }
+        => await _db.Clientes.OrderBy(e => e.Nome).ToListAsync();
 
     public async Task<PagedResult<Cliente>> GetPagedAsync(int start, int length, string search, string orderColumn, string orderDir)
     {
-        var col = OrderColumns.TryGetValue(orderColumn, out var c) ? c : "Nome";
-        var dir = orderDir.Equals("desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
-        var searchParam = $"%{search}%";
+        var query = _db.Clientes.Where(e =>
+            string.IsNullOrEmpty(search)
+            || EF.Functions.Like(e.Nome, $"%{search}%")
+            || (e.Cpf != null && EF.Functions.Like(e.Cpf, $"%{search}%"))
+            || (e.Telefone1 != null && EF.Functions.Like(e.Telefone1, $"%{search}%")));
 
-        var sql = $@"
-SELECT * FROM Cliente
-WHERE Deletado = 0
-  AND (@Search = '' OR Nome LIKE @SearchParam OR Cpf LIKE @SearchParam OR Telefone1 LIKE @SearchParam)
-ORDER BY {col} {dir}
-OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;
+        int totalRecords    = await _db.Clientes.CountAsync();
+        int filteredRecords = await query.CountAsync();
 
-SELECT COUNT(*) FROM Cliente WHERE Deletado = 0;
-
-SELECT COUNT(*) FROM Cliente
-WHERE Deletado = 0
-  AND (@Search = '' OR Nome LIKE @SearchParam OR Cpf LIKE @SearchParam OR Telefone1 LIKE @SearchParam);";
-
-        using var conn = Connection;
-        using var multi = await conn.QueryMultipleAsync(sql, new { Search = search, SearchParam = searchParam, Start = start, Length = length });
-
-        return new PagedResult<Cliente>
+        query = (orderColumn.ToLower(), orderDir.ToLower()) switch
         {
-            Data = (await multi.ReadAsync<Cliente>()).ToList(),
-            TotalRecords = await multi.ReadSingleAsync<int>(),
-            FilteredRecords = await multi.ReadSingleAsync<int>()
+            ("cpf",       "desc") => query.OrderByDescending(e => e.Cpf),
+            ("cpf",       _)      => query.OrderBy(e => e.Cpf),
+            ("telefone1", "desc") => query.OrderByDescending(e => e.Telefone1),
+            ("telefone1", _)      => query.OrderBy(e => e.Telefone1),
+            (_,           "desc") => query.OrderByDescending(e => e.Nome),
+            _                     => query.OrderBy(e => e.Nome)
         };
+
+        var data = await query.Skip(start).Take(length).ToListAsync();
+
+        return new PagedResult<Cliente> { Data = data, TotalRecords = totalRecords, FilteredRecords = filteredRecords };
     }
 
     public override async Task<int> InsertAsync(Cliente entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            "INSERT INTO Cliente (Nome,Cpf,Rg,Endereco,Telefone1,Telefone2,Deletado) VALUES (@Nome,@Cpf,@Rg,@Endereco,@Telefone1,@Telefone2,0); SELECT SCOPE_IDENTITY();",
-            entity);
+        entity.Deletado = false;
+        _db.Clientes.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public override async Task UpdateAsync(Cliente entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "UPDATE Cliente SET Nome=@Nome,Cpf=@Cpf,Rg=@Rg,Endereco=@Endereco,Telefone1=@Telefone1,Telefone2=@Telefone2 WHERE Id=@Id",
-            entity);
+        _db.Clientes.Update(entity);
+        await _db.SaveChangesAsync();
     }
 
     public override async Task DeleteAsync(int id)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync("UPDATE Cliente SET Deletado=1 WHERE Id=@Id", new { Id = id });
+        await _db.Clientes.IgnoreQueryFilters()
+            .Where(e => e.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Deletado, true));
     }
 }

@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
 using Rupestre.Infrastructure.Data;
@@ -7,41 +7,24 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class VendaPagamentoRepository : BaseRepository<VendaPagamento>, IVendaPagamentoRepository
 {
-    protected override string TableName => "VendaPagamento";
-
-    public VendaPagamentoRepository(ConnectionManager cm) : base(cm) { }
+    public VendaPagamentoRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<VendaPagamento>> GetByVendaAsync(int vendaId)
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<VendaPagamento>(
-            "SELECT * FROM VendaPagamento WHERE Venda_Id = @VendaId",
-            new { VendaId = vendaId });
-    }
+        => await _db.VendaPagamentos.Where(e => e.Venda_Id == vendaId).ToListAsync();
 
     public async Task DeleteByVendaAsync(int vendaId)
+        => await _db.VendaPagamentos.Where(e => e.Venda_Id == vendaId).ExecuteDeleteAsync();
+
+    public override async Task<int> InsertAsync(VendaPagamento entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "DELETE FROM VendaPagamento WHERE Venda_Id = @VendaId",
-            new { VendaId = vendaId });
+        _db.VendaPagamentos.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
-    public override async Task<int> InsertAsync(VendaPagamento e)
+    public override async Task UpdateAsync(VendaPagamento entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO VendaPagamento (Venda_Id, FormaPagamento_Id, TipoPagamento_Id, Parcelas, ValorPagamento, ValorLiquidoPagamento, Caixa_Id)
-              VALUES (@Venda_Id, @FormaPagamento_Id, @TipoPagamento_Id, @Parcelas, @ValorPagamento, @ValorLiquidoPagamento, @Caixa_Id);
-              SELECT SCOPE_IDENTITY();",
-            e);
-    }
-
-    public override async Task UpdateAsync(VendaPagamento e)
-    {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "UPDATE VendaPagamento SET Parcelas=@Parcelas, ValorPagamento=@ValorPagamento, ValorLiquidoPagamento=@ValorLiquidoPagamento WHERE Id=@Id",
-            e);
+        _db.VendaPagamentos.Update(entity);
+        await _db.SaveChangesAsync();
     }
 }

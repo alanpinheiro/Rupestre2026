@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Rupestre.Domain.Entities;
 using Rupestre.Infrastructure.Identity;
 
 namespace Rupestre.Infrastructure.Data;
@@ -18,7 +19,37 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public DbSet<AuditEntry> AuditLogs => Set<AuditEntry>();
+    public DbSet<AuditEntry>      AuditLogs       => Set<AuditEntry>();
+    public DbSet<Caixa>           Caixas          => Set<Caixa>();
+    public DbSet<Cliente>         Clientes        => Set<Cliente>();
+    public DbSet<Despesa>         Despesas        => Set<Despesa>();
+    public DbSet<Fabricante>      Fabricantes     => Set<Fabricante>();
+    public DbSet<FormaPagamento>  FormasPagamento => Set<FormaPagamento>();
+    public DbSet<Produto>         Produtos        => Set<Produto>();
+    public DbSet<Suprimento>      Suprimentos     => Set<Suprimento>();
+    public DbSet<Venda>           Vendas          => Set<Venda>();
+    public DbSet<VendaPagamento>  VendaPagamentos => Set<VendaPagamento>();
+    public DbSet<VendaProduto>    VendaProdutos   => Set<VendaProduto>();
+    public DbSet<VendaRemessa>    VendaRemessas   => Set<VendaRemessa>();
+    public DbSet<Vendedor>        Vendedores      => Set<Vendedor>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        builder.Entity<Caixa>().ToTable("Caixa");
+        builder.Entity<Cliente>().ToTable("Cliente").HasQueryFilter(e => !e.Deletado);
+        builder.Entity<Despesa>().ToTable("Despesa").HasQueryFilter(e => !e.Deletado);
+        builder.Entity<Fabricante>().ToTable("Fabricante").HasQueryFilter(e => !e.Deletado);
+        builder.Entity<FormaPagamento>().ToTable("FormaPagamento").HasQueryFilter(e => !e.Deletado);
+        builder.Entity<Produto>().ToTable("Produto").HasQueryFilter(e => !e.Deletado);
+        builder.Entity<Suprimento>().ToTable("Suprimento").HasQueryFilter(e => !e.Deletado);
+        builder.Entity<Venda>().ToTable("Venda");
+        builder.Entity<VendaPagamento>().ToTable("VendaPagamento");
+        builder.Entity<VendaProduto>().ToTable("VendaProduto");
+        builder.Entity<VendaRemessa>().ToTable("VendaRemessa").HasQueryFilter(e => e.Deletado != true);
+        builder.Entity<Vendedor>().ToTable("Vendedor").HasQueryFilter(e => !e.Deletado);
+    }
 
     // ── Override principal ────────────────────────────────────────────────────
 

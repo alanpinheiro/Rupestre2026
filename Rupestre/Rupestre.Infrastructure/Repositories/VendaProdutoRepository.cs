@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
 using Rupestre.Infrastructure.Data;
@@ -7,41 +7,24 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class VendaProdutoRepository : BaseRepository<VendaProduto>, IVendaProdutoRepository
 {
-    protected override string TableName => "VendaProduto";
-
-    public VendaProdutoRepository(ConnectionManager cm) : base(cm) { }
+    public VendaProdutoRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<VendaProduto>> GetByVendaAsync(int vendaId)
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<VendaProduto>(
-            "SELECT * FROM VendaProduto WHERE Venda_Id = @VendaId",
-            new { VendaId = vendaId });
-    }
+        => await _db.VendaProdutos.Where(e => e.Venda_Id == vendaId).ToListAsync();
 
     public async Task DeleteByVendaAsync(int vendaId)
+        => await _db.VendaProdutos.Where(e => e.Venda_Id == vendaId).ExecuteDeleteAsync();
+
+    public override async Task<int> InsertAsync(VendaProduto entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "DELETE FROM VendaProduto WHERE Venda_Id = @VendaId",
-            new { VendaId = vendaId });
+        _db.VendaProdutos.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
-    public override async Task<int> InsertAsync(VendaProduto e)
+    public override async Task UpdateAsync(VendaProduto entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO VendaProduto (Venda_Id, Produto_Id, PrecoVenda, SubTotal, Quantidade)
-              VALUES (@Venda_Id, @Produto_Id, @PrecoVenda, @SubTotal, @Quantidade);
-              SELECT SCOPE_IDENTITY();",
-            e);
-    }
-
-    public override async Task UpdateAsync(VendaProduto e)
-    {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            "UPDATE VendaProduto SET PrecoVenda=@PrecoVenda, SubTotal=@SubTotal, Quantidade=@Quantidade WHERE Id=@Id",
-            e);
+        _db.VendaProdutos.Update(entity);
+        await _db.SaveChangesAsync();
     }
 }

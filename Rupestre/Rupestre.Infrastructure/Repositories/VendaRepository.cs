@@ -1,4 +1,4 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Rupestre.Domain.Common;
 using Rupestre.Domain.Entities;
 using Rupestre.Domain.Interfaces;
@@ -8,222 +8,189 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class VendaRepository : BaseRepository<Venda>, IVendaRepository
 {
-    protected override string TableName => "Venda";
-
-    private static readonly Dictionary<string, string> OrderColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["id"] = "v.Id",
-        ["dataVenda"] = "v.DataVenda"
-    };
-
-    public VendaRepository(ConnectionManager connectionManager) : base(connectionManager) { }
+    public VendaRepository(ApplicationDbContext db) : base(db) { }
 
     public async Task<IEnumerable<Venda>> GetByClienteAsync(int clienteId)
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<Venda>(
-            "SELECT * FROM Venda WHERE Cliente_Id = @ClienteId",
-            new { ClienteId = clienteId });
-    }
+        => await _db.Vendas.Where(v => v.Cliente_Id == clienteId).ToListAsync();
 
     public async Task<IEnumerable<Venda>> GetByCaixaAsync(int caixaId)
-    {
-        using var conn = Connection;
-        return await conn.QueryAsync<Venda>(
-            "SELECT * FROM Venda WHERE Caixa_Id = @CaixaId",
-            new { CaixaId = caixaId });
-    }
+        => await _db.Vendas.Where(v => v.Caixa_Id == caixaId).ToListAsync();
 
     public async Task<PagedResult<VendaDetalhe>> GetPagedAsync(int start, int length, string search, string orderColumn, string orderDir)
     {
-        var col = OrderColumns.TryGetValue(orderColumn, out var c) ? c : "v.DataVenda";
-        var dir = orderDir.Equals("desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
-        var searchParam = $"%{search}%";
+        int? searchId = int.TryParse(search, out var parsed) ? parsed : null;
 
-        var sql = $@"
-SELECT v.*, c.Nome AS NomeCliente, ve.Nome AS NomeVendedor,
-       ISNULL((SELECT SUM(vp.SubTotal) FROM VendaProduto vp WHERE vp.Venda_Id = v.Id), 0) AS TotalVenda
-FROM Venda v
-LEFT JOIN Cliente c ON c.Id = v.Cliente_Id
-LEFT JOIN Vendedor ve ON ve.Id = v.Vendedor_Id
-WHERE (@Search = '' OR c.Nome LIKE @SearchParam OR CAST(v.Id AS VARCHAR) LIKE @SearchParam)
-ORDER BY {col} {dir}
-OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;
+        var baseQuery = from v in _db.Vendas
+                        join c in _db.Clientes.IgnoreQueryFilters() on v.Cliente_Id equals c.Id into cj
+                        from c in cj.DefaultIfEmpty()
+                        join ve in _db.Vendedores.IgnoreQueryFilters() on v.Vendedor_Id equals ve.Id into vej
+                        from ve in vej.DefaultIfEmpty()
+                        where string.IsNullOrEmpty(search)
+                              || (c != null && EF.Functions.Like(c.Nome, $"%{search}%"))
+                              || (searchId.HasValue && v.Id == searchId.Value)
+                        select new VendaDetalhe
+                        {
+                            Id                  = v.Id,
+                            NumeroPedidoExterno = v.NumeroPedidoExterno,
+                            DataVenda           = v.DataVenda,
+                            StatusVenda         = v.StatusVenda,
+                            DataEntrega         = v.DataEntrega,
+                            StatusEntrega       = v.StatusEntrega,
+                            Observacao          = v.Observacao,
+                            Frete               = v.Frete,
+                            ResidenciaPagamento = v.ResidenciaPagamento,
+                            Caixa_Id            = v.Caixa_Id,
+                            Cliente_Id          = v.Cliente_Id,
+                            Vendedor_Id         = v.Vendedor_Id,
+                            NomeCliente         = c != null ? c.Nome : "",
+                            NomeVendedor        = ve != null ? ve.Nome : "",
+                            TotalVenda          = _db.VendaProdutos
+                                .Where(vp => vp.Venda_Id == v.Id)
+                                .Sum(vp => (decimal?)vp.SubTotal) ?? 0
+                        };
 
-SELECT COUNT(*) FROM Venda;
+        int totalRecords    = await _db.Vendas.CountAsync();
+        int filteredRecords = await baseQuery.CountAsync();
 
-SELECT COUNT(*) FROM Venda v
-LEFT JOIN Cliente c ON c.Id = v.Cliente_Id
-WHERE (@Search = '' OR c.Nome LIKE @SearchParam OR CAST(v.Id AS VARCHAR) LIKE @SearchParam);";
-
-        using var conn = Connection;
-        using var multi = await conn.QueryMultipleAsync(sql,
-            new { Search = search, SearchParam = searchParam, Start = start, Length = length });
-
-        return new PagedResult<VendaDetalhe>
+        IQueryable<VendaDetalhe> ordered = (orderColumn.ToLower(), orderDir.ToLower()) switch
         {
-            Data = (await multi.ReadAsync<VendaDetalhe>()).ToList(),
-            TotalRecords = await multi.ReadSingleAsync<int>(),
-            FilteredRecords = await multi.ReadSingleAsync<int>()
+            ("id",        "asc")  => baseQuery.OrderBy(v => v.Id),
+            ("id",        _)      => baseQuery.OrderByDescending(v => v.Id),
+            ("datavenda", "asc")  => baseQuery.OrderBy(v => v.DataVenda),
+            (_,           "desc") => baseQuery.OrderByDescending(v => v.DataVenda),
+            _                     => baseQuery.OrderByDescending(v => v.DataVenda)
         };
+
+        var data = await ordered.Skip(start).Take(length).ToListAsync();
+
+        return new PagedResult<VendaDetalhe> { Data = data, TotalRecords = totalRecords, FilteredRecords = filteredRecords };
     }
 
     public async Task<(VendaDetalhe? Venda, IEnumerable<VendaProduto> Produtos, IEnumerable<VendaPagamento> Pagamentos)> GetByIdWithDetailsAsync(int id)
     {
-        const string sql = @"
-SELECT v.*, c.Nome AS NomeCliente, ve.Nome AS NomeVendedor,
-       ISNULL((SELECT SUM(vp.SubTotal) FROM VendaProduto vp WHERE vp.Venda_Id = v.Id), 0) AS TotalVenda
-FROM Venda v
-LEFT JOIN Cliente c ON c.Id = v.Cliente_Id
-LEFT JOIN Vendedor ve ON ve.Id = v.Vendedor_Id
-WHERE v.Id = @Id;
+        var venda = await (from v in _db.Vendas
+                           join c in _db.Clientes.IgnoreQueryFilters() on v.Cliente_Id equals c.Id into cj
+                           from c in cj.DefaultIfEmpty()
+                           join ve in _db.Vendedores.IgnoreQueryFilters() on v.Vendedor_Id equals ve.Id into vej
+                           from ve in vej.DefaultIfEmpty()
+                           where v.Id == id
+                           select new VendaDetalhe
+                           {
+                               Id                  = v.Id,
+                               NumeroPedidoExterno = v.NumeroPedidoExterno,
+                               DataVenda           = v.DataVenda,
+                               StatusVenda         = v.StatusVenda,
+                               DataEntrega         = v.DataEntrega,
+                               StatusEntrega       = v.StatusEntrega,
+                               Observacao          = v.Observacao,
+                               Frete               = v.Frete,
+                               ResidenciaPagamento = v.ResidenciaPagamento,
+                               Caixa_Id            = v.Caixa_Id,
+                               Cliente_Id          = v.Cliente_Id,
+                               Vendedor_Id         = v.Vendedor_Id,
+                               NomeCliente         = c != null ? c.Nome : "",
+                               NomeVendedor        = ve != null ? ve.Nome : "",
+                               TotalVenda          = _db.VendaProdutos
+                                   .Where(vp => vp.Venda_Id == v.Id)
+                                   .Sum(vp => (decimal?)vp.SubTotal) ?? 0
+                           }).FirstOrDefaultAsync();
 
-SELECT * FROM VendaProduto WHERE Venda_Id = @Id;
-
-SELECT * FROM VendaPagamento WHERE Venda_Id = @Id;";
-
-        using var conn = Connection;
-        using var multi = await conn.QueryMultipleAsync(sql, new { Id = id });
-
-        var venda = await multi.ReadFirstOrDefaultAsync<VendaDetalhe>();
-        var produtos = (await multi.ReadAsync<VendaProduto>()).ToList();
-        var pagamentos = (await multi.ReadAsync<VendaPagamento>()).ToList();
+        var produtos   = await _db.VendaProdutos.Where(vp => vp.Venda_Id == id).ToListAsync();
+        var pagamentos = await _db.VendaPagamentos.Where(vp => vp.Venda_Id == id).ToListAsync();
 
         return (venda, produtos, pagamentos);
     }
 
     public async Task<int> CreateWithDetailsAsync(Venda venda, IEnumerable<VendaProduto> produtos, IEnumerable<VendaPagamento> pagamentos)
     {
-        var conn = _connectionManager.CreateConnection();
-        conn.Open();
-        using var tx = conn.BeginTransaction();
+        using var tx = await _db.Database.BeginTransactionAsync();
         try
         {
-            var vendaId = await conn.ExecuteScalarAsync<int>(
-                @"INSERT INTO Venda (NumeroPedidoExterno, DataVenda, StatusVenda, DataEntrega, StatusEntrega, Observacao, Frete, ResidenciaPagamento, Caixa_Id, Cliente_Id, Vendedor_Id)
-                  VALUES (@NumeroPedidoExterno, @DataVenda, @StatusVenda, @DataEntrega, @StatusEntrega, @Observacao, @Frete, @ResidenciaPagamento, @Caixa_Id, @Cliente_Id, @Vendedor_Id);
-                  SELECT SCOPE_IDENTITY();",
-                venda, tx);
+            _db.Vendas.Add(venda);
+            await _db.SaveChangesAsync();
 
-            foreach (var produto in produtos)
+            foreach (var p in produtos)
             {
-                produto.Venda_Id = vendaId;
-                await conn.ExecuteAsync(
-                    @"INSERT INTO VendaProduto (Venda_Id, Produto_Id, PrecoVenda, SubTotal, Quantidade)
-                      VALUES (@Venda_Id, @Produto_Id, @PrecoVenda, @SubTotal, @Quantidade);",
-                    produto, tx);
+                p.Venda_Id = venda.Id;
+                _db.VendaProdutos.Add(p);
             }
-
-            foreach (var pagamento in pagamentos)
+            foreach (var pg in pagamentos)
             {
-                pagamento.Venda_Id = vendaId;
-                await conn.ExecuteAsync(
-                    @"INSERT INTO VendaPagamento (Venda_Id, FormaPagamento_Id, TipoPagamento_Id, Parcelas, ValorPagamento, ValorLiquidoPagamento, Caixa_Id)
-                      VALUES (@Venda_Id, @FormaPagamento_Id, @TipoPagamento_Id, @Parcelas, @ValorPagamento, @ValorLiquidoPagamento, @Caixa_Id);",
-                    pagamento, tx);
+                pg.Venda_Id = venda.Id;
+                _db.VendaPagamentos.Add(pg);
             }
-
-            tx.Commit();
-            return vendaId;
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return venda.Id;
         }
         catch
         {
-            tx.Rollback();
+            await tx.RollbackAsync();
             throw;
-        }
-        finally
-        {
-            conn.Dispose();
         }
     }
 
     public async Task UpdateWithDetailsAsync(Venda venda, IEnumerable<VendaProduto> produtos, IEnumerable<VendaPagamento> pagamentos)
     {
-        var conn = _connectionManager.CreateConnection();
-        conn.Open();
-        using var tx = conn.BeginTransaction();
+        using var tx = await _db.Database.BeginTransactionAsync();
         try
         {
-            await conn.ExecuteAsync(
-                "DELETE FROM VendaProduto WHERE Venda_Id = @Id",
-                new { venda.Id }, tx);
+            await _db.VendaProdutos.Where(vp => vp.Venda_Id == venda.Id).ExecuteDeleteAsync();
+            await _db.VendaPagamentos.Where(vp => vp.Venda_Id == venda.Id).ExecuteDeleteAsync();
 
-            await conn.ExecuteAsync(
-                "DELETE FROM VendaPagamento WHERE Venda_Id = @Id",
-                new { venda.Id }, tx);
+            _db.Vendas.Update(venda);
+            await _db.SaveChangesAsync();
 
-            await conn.ExecuteAsync(
-                @"UPDATE Venda SET
-                    NumeroPedidoExterno=@NumeroPedidoExterno,
-                    DataVenda=@DataVenda,
-                    StatusVenda=@StatusVenda,
-                    DataEntrega=@DataEntrega,
-                    StatusEntrega=@StatusEntrega,
-                    Observacao=@Observacao,
-                    Frete=@Frete,
-                    ResidenciaPagamento=@ResidenciaPagamento,
-                    Cliente_Id=@Cliente_Id,
-                    Vendedor_Id=@Vendedor_Id
-                  WHERE Id=@Id",
-                venda, tx);
-
-            foreach (var produto in produtos)
+            foreach (var p in produtos)
             {
-                produto.Venda_Id = venda.Id;
-                await conn.ExecuteAsync(
-                    @"INSERT INTO VendaProduto (Venda_Id, Produto_Id, PrecoVenda, SubTotal, Quantidade)
-                      VALUES (@Venda_Id, @Produto_Id, @PrecoVenda, @SubTotal, @Quantidade);",
-                    produto, tx);
+                p.Venda_Id = venda.Id;
+                _db.VendaProdutos.Add(p);
             }
-
-            foreach (var pagamento in pagamentos)
+            foreach (var pg in pagamentos)
             {
-                pagamento.Venda_Id = venda.Id;
-                await conn.ExecuteAsync(
-                    @"INSERT INTO VendaPagamento (Venda_Id, FormaPagamento_Id, TipoPagamento_Id, Parcelas, ValorPagamento, ValorLiquidoPagamento, Caixa_Id)
-                      VALUES (@Venda_Id, @FormaPagamento_Id, @TipoPagamento_Id, @Parcelas, @ValorPagamento, @ValorLiquidoPagamento, @Caixa_Id);",
-                    pagamento, tx);
+                pg.Venda_Id = venda.Id;
+                _db.VendaPagamentos.Add(pg);
             }
-
-            tx.Commit();
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
         }
         catch
         {
-            tx.Rollback();
+            await tx.RollbackAsync();
             throw;
-        }
-        finally
-        {
-            conn.Dispose();
         }
     }
 
     public override async Task<int> InsertAsync(Venda entity)
     {
-        using var conn = Connection;
-        return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO Venda (NumeroPedidoExterno, DataVenda, StatusVenda, DataEntrega, StatusEntrega, Observacao, Frete, ResidenciaPagamento, Caixa_Id, Cliente_Id, Vendedor_Id)
-              VALUES (@NumeroPedidoExterno, @DataVenda, @StatusVenda, @DataEntrega, @StatusEntrega, @Observacao, @Frete, @ResidenciaPagamento, @Caixa_Id, @Cliente_Id, @Vendedor_Id);
-              SELECT SCOPE_IDENTITY();",
-            entity);
+        _db.Vendas.Add(entity);
+        await _db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public override async Task UpdateAsync(Venda entity)
     {
-        using var conn = Connection;
-        await conn.ExecuteAsync(
-            @"UPDATE Venda SET
-                NumeroPedidoExterno=@NumeroPedidoExterno,
-                DataVenda=@DataVenda,
-                StatusVenda=@StatusVenda,
-                DataEntrega=@DataEntrega,
-                StatusEntrega=@StatusEntrega,
-                Observacao=@Observacao,
-                Frete=@Frete,
-                ResidenciaPagamento=@ResidenciaPagamento,
-                Cliente_Id=@Cliente_Id,
-                Vendedor_Id=@Vendedor_Id
-              WHERE Id=@Id",
-            entity);
+        _db.Vendas.Update(entity);
+        await _db.SaveChangesAsync();
+    }
+
+    public override async Task DeleteAsync(int id)
+    {
+        using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            await _db.VendaProdutos.Where(vp => vp.Venda_Id == id).ExecuteDeleteAsync();
+            await _db.VendaPagamentos.Where(vp => vp.Venda_Id == id).ExecuteDeleteAsync();
+
+            var venda = await _db.Vendas.FindAsync(id);
+            if (venda is not null) _db.Vendas.Remove(venda);
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 }

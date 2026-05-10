@@ -1,4 +1,5 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
+using Rupestre.Domain.Enums;
 using Rupestre.Domain.Interfaces;
 using Rupestre.Infrastructure.Data;
 
@@ -6,99 +7,86 @@ namespace Rupestre.Infrastructure.Repositories;
 
 public class DashboardRepository : IDashboardRepository
 {
-    private readonly ConnectionManager _connectionManager;
+    private readonly ApplicationDbContext _db;
 
-    public DashboardRepository(ConnectionManager connectionManager)
-    {
-        _connectionManager = connectionManager;
-    }
+    public DashboardRepository(ApplicationDbContext db) => _db = db;
 
     public async Task<DashboardData> GetDashboardDataAsync()
     {
-        const string sql = @"
--- Cards
-SELECT
-    ISNULL((
-        SELECT SUM(vp.SubTotal)
-        FROM VendaProduto vp
-        INNER JOIN Venda v ON v.Id = vp.Venda_Id
-        WHERE CAST(v.DataVenda AS DATE) = CAST(GETDATE() AS DATE)
-          AND v.StatusVenda <> 0
-    ), 0) AS VendasHoje,
-    (
-        SELECT COUNT(*)
-        FROM Venda
-        WHERE StatusEntrega IN (2, 3)
-          AND StatusVenda <> 0
-    ) AS MoveisAEntregar,
-    (
-        SELECT COUNT(*)
-        FROM Venda
-        WHERE CAST(DataEntrega AS DATE) = CAST(GETDATE() AS DATE)
-          AND StatusEntrega <> 1
-          AND StatusVenda <> 0
-    ) AS MontagensParaHoje;
+        var today     = DateTime.Today;
+        var startDate = new DateTime(today.AddMonths(-5).Year, today.AddMonths(-5).Month, 1);
 
--- Faturamento vs Recebimento (últimos 6 meses)
-WITH Meses AS (
-    SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2
-    UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
-),
-MesesBase AS (
-    SELECT
-        YEAR(DATEADD(MONTH, -n, GETDATE())) * 100 + MONTH(DATEADD(MONTH, -n, GETDATE())) AS MesOrdem,
-        FORMAT(DATEADD(MONTH, -n, GETDATE()), 'MM/yyyy') AS MesLabel
-    FROM Meses
-),
-Fat AS (
-    SELECT YEAR(v.DataVenda) * 100 + MONTH(v.DataVenda) AS MesOrdem,
-           SUM(vp.SubTotal) AS Faturamento
-    FROM Venda v
-    INNER JOIN VendaProduto vp ON vp.Venda_Id = v.Id
-    WHERE v.DataVenda >= DATEFROMPARTS(YEAR(DATEADD(MONTH,-5,GETDATE())), MONTH(DATEADD(MONTH,-5,GETDATE())), 1)
-      AND v.StatusVenda <> 0
-    GROUP BY YEAR(v.DataVenda) * 100 + MONTH(v.DataVenda)
-),
-Rec AS (
-    SELECT YEAR(v.DataVenda) * 100 + MONTH(v.DataVenda) AS MesOrdem,
-           SUM(pg.ValorLiquidoPagamento) AS Recebimento
-    FROM Venda v
-    INNER JOIN VendaPagamento pg ON pg.Venda_Id = v.Id
-    WHERE v.DataVenda >= DATEFROMPARTS(YEAR(DATEADD(MONTH,-5,GETDATE())), MONTH(DATEADD(MONTH,-5,GETDATE())), 1)
-      AND v.StatusVenda <> 0
-    GROUP BY YEAR(v.DataVenda) * 100 + MONTH(v.DataVenda)
-)
-SELECT m.MesLabel AS Mes,
-       ISNULL(f.Faturamento, 0) AS Faturamento,
-       ISNULL(r.Recebimento, 0) AS Recebimento
-FROM MesesBase m
-LEFT JOIN Fat f ON f.MesOrdem = m.MesOrdem
-LEFT JOIN Rec r ON r.MesOrdem = m.MesOrdem
-ORDER BY m.MesOrdem;
+        var vendasHoje = await _db.VendaProdutos
+            .Where(vp => _db.Vendas.Any(v =>
+                v.Id == vp.Venda_Id
+                && v.DataVenda.Date == today
+                && v.StatusVenda != StatusVenda.Cancelada))
+            .SumAsync(vp => (decimal?)vp.SubTotal) ?? 0m;
 
--- Top 10 produtos
-SELECT TOP 10 p.Nome, SUM(vp.Quantidade) AS QuantidadeVendida, p.Estoque
-FROM VendaProduto vp
-INNER JOIN Produto p ON p.Id = vp.Produto_Id
-INNER JOIN Venda v ON v.Id = vp.Venda_Id
-WHERE v.StatusVenda <> 0
-GROUP BY p.Nome, p.Estoque
-ORDER BY QuantidadeVendida DESC;";
+        var moveisAEntregar = await _db.Vendas.CountAsync(v =>
+            (v.StatusEntrega == StatusEntrega.Agendada || v.StatusEntrega == StatusEntrega.Atrasada)
+            && v.StatusVenda != StatusVenda.Cancelada);
 
-        using var conn = _connectionManager.CreateConnection();
-        using var multi = await conn.QueryMultipleAsync(sql);
+        var montagensParaHoje = await _db.Vendas.CountAsync(v =>
+            v.DataEntrega.HasValue
+            && v.DataEntrega.Value.Date == today
+            && v.StatusEntrega != StatusEntrega.Entregue
+            && v.StatusVenda != StatusVenda.Cancelada);
 
-        var cards = await multi.ReadFirstAsync<(decimal VendasHoje, int MoveisAEntregar, int MontagensParaHoje)>();
-        var faturamento = await multi.ReadAsync<MesFaturamento>();
-        var abc = await multi.ReadAsync<AbcItem>();
+        var fatRaw = await (from vp in _db.VendaProdutos
+                            join v in _db.Vendas on vp.Venda_Id equals v.Id
+                            where v.DataVenda >= startDate && v.StatusVenda != StatusVenda.Cancelada
+                            group vp.SubTotal by new { v.DataVenda.Year, v.DataVenda.Month } into g
+                            select new { g.Key.Year, g.Key.Month, Faturamento = g.Sum() })
+                           .ToListAsync();
+
+        var recRaw = await (from pg in _db.VendaPagamentos
+                            join v in _db.Vendas on pg.Venda_Id equals v.Id
+                            where v.DataVenda >= startDate && v.StatusVenda != StatusVenda.Cancelada
+                            group pg.ValorLiquidoPagamento by new { v.DataVenda.Year, v.DataVenda.Month } into g
+                            select new { g.Key.Year, g.Key.Month, Recebimento = g.Sum() })
+                           .ToListAsync();
+
+        var months = Enumerable.Range(0, 6)
+            .Select(i => today.AddMonths(-i))
+            .Select(d => new { d.Year, d.Month, Label = d.ToString("MM/yyyy") })
+            .OrderBy(m => m.Year * 100 + m.Month)
+            .ToList();
+
+        var faturamento = months.Select(m => new MesFaturamento
+        {
+            Mes         = m.Label,
+            Faturamento = fatRaw.FirstOrDefault(f => f.Year == m.Year && f.Month == m.Month)?.Faturamento ?? 0m,
+            Recebimento = recRaw.FirstOrDefault(r => r.Year == m.Year && r.Month == m.Month)?.Recebimento ?? 0m
+        }).ToList();
+
+        var abc = await (from vp in _db.VendaProdutos
+                         join v in _db.Vendas on vp.Venda_Id equals v.Id
+                         where v.StatusVenda != StatusVenda.Cancelada
+                         group vp by vp.Produto_Id into g
+                         orderby g.Sum(x => x.Quantidade) descending
+                         select new { Produto_Id = g.Key, QuantidadeVendida = g.Sum(x => x.Quantidade) })
+                        .Take(10)
+                        .Join(_db.Produtos.IgnoreQueryFilters(),
+                              x => x.Produto_Id,
+                              p => p.Id,
+                              (x, p) => new AbcItem { Nome = p.Nome, QuantidadeVendida = x.QuantidadeVendida, Estoque = p.Estoque })
+                        .ToListAsync();
+
+        var statusEntregas = await _db.Vendas
+            .Where(v => v.StatusVenda != StatusVenda.Cancelada)
+            .GroupBy(v => v.StatusEntrega)
+            .Select(g => new StatusEntregaItem { StatusEntrega = (int)g.Key, Qty = g.Count() })
+            .ToListAsync();
 
         return new DashboardData
         {
-            VendasHoje = cards.VendasHoje,
-            MoveisAEntregar = cards.MoveisAEntregar,
-            MontagensParaHoje = cards.MontagensParaHoje,
-            Faturamento = faturamento,
-            Abc = abc
+            VendasHoje        = vendasHoje,
+            MoveisAEntregar   = moveisAEntregar,
+            MontagensParaHoje = montagensParaHoje,
+            Faturamento       = faturamento,
+            Abc               = abc,
+            StatusEntregas    = statusEntregas
         };
     }
 }
